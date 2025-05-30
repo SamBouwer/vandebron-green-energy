@@ -1,0 +1,11 @@
+{
+  "domain": "vandebron_green_energy",
+  "name": "Vandebron Green Energy",
+  "documentation": "https://www.home-assistant.io/integrations/",
+  "dependencies": [],
+  "codeowners": ["@sambouwer"],
+  "version": "0.1.0",
+  "requirements": ["aiohttp"],
+  "iot_class": "cloud_polling",
+  "config_flow": true
+}
