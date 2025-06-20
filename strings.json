@@ -1,0 +1,27 @@
+{
+  "title": "Vandebron Green Energy",
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "setup_mode": "Choose between default or advanced setup",
+          "default": "Retrieve 2 days of data (today and tomorrow)",
+          "advanced": "Retrieve a custom number of days of data (1-7)",
+        }
+      }
+    },
+    "options": {
+      "data": {
+        "day_offset": "Number of days to retrieve data for (1-7)"
+        }
+    },
+    "error": {
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
+      "unknown": "[%key:common::config_flow::error::unknown%]"
+    },
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+    }
+  }
+}
