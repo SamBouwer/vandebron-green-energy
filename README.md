@@ -15,7 +15,33 @@ This custom integration is not yet submitted to HACS, so you need to manually in
 * Click Submit
 
 ## Configure dashboard
-After configuring the integration you can make the retrieved data visible on your dashboard
+After configuring the integration you can make the retrieved data visible on your dashboard:
+
+* Add a new card
+* Choose "manual"
+* Paste the following yaml code in the editor and save
+
+```yaml
+type: entities
+entities:
+  - entity: sensor.vandebron_greenpercentage_day_0
+    icon: mdi:leaf
+    name: Percentage green electricity today
+  - entity: sensor.vandebron_green_window_start_time
+    name: Greenest window start time
+    icon: mdi:clock-start
+  - entity: sensor.vandebron_green_window_end_time
+    name: Greenest window end time
+    icon: mdi:clock-end
+  - entity: sensor.minutes_until_next_green_window
+    name: Minutes until next green window
+    icon: mdi:clock-fast
+```
+
+[Example of Entities on a Home Assistant Dashboard](entities.png)
+
+If you want to visualize the data in a graph:
+
 * Install the `apexcharts-card` (see installation instructions here: https://github.com/RomRider/apexcharts-card)
 * Add an ApexCharts Card to your dashboard and add the following code as an example to show data for today and tomorrow:
 
@@ -60,6 +86,8 @@ series:
       });
 
 ```
+
+[Example of an Apex graph on a Home Assistant Dashboard](graph.png)
 
 ## Automations
 You can create automations to start appliances in your home when the "greenest" 3 hour timeframe of the day starts with the entity `minutes_until_next_green_window`.
