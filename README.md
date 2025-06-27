@@ -38,7 +38,7 @@ entities:
     icon: mdi:clock-fast
 ```
 
-[Example of Entities on a Home Assistant Dashboard](entities.png)
+![Example of Entities on a Home Assistant Dashboard](entities.png)
 
 If you want to visualize the data in a graph:
 
@@ -87,7 +87,7 @@ series:
 
 ```
 
-[Example of an Apex graph on a Home Assistant Dashboard](graph.png)
+![Example of an Apex graph on a Home Assistant Dashboard](graph.png)
 
 ## Automations
 You can create automations to start appliances in your home when the "greenest" 3 hour timeframe of the day starts with the entity `minutes_until_next_green_window`.
