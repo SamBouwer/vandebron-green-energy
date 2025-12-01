@@ -2,9 +2,13 @@
 Use this custom Home Assistant integration to get details about the green energy from Dutch energy provider Vandebron
 
 ## Installation
-This custom integration is not yet submitted to HACS, so you need to manually install this integration:
-* Create a new folder `vandebron_green_energy` so that you have `/homeassistant/custom_components/vandebron_green_energy`
-* Download the files from this repository and save them inside the "vandebron_green_energy" folder
+### Installation via HACS
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=sambouwer&repository=vandebron-green-energy&category=integration)
+
+### Manual installation
+* Create a new folder `vandebron_green_energy`
+* Download the files from this repository and save them inside the "vandebron_green_energy" folder so that you have `/homeassistant/custom_components/vandebron_green_energy`
 * Restart Home Assistant
 * Go to `Settings` > `Devices & services` and click the `+ Add integration` button
 * Search for `vandebron`
