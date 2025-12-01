@@ -120,7 +120,7 @@ class VandebronTimeUntilNextWindowSensor(SensorEntity):
         if not greenest_windows:
             return None  # ✅ Avoid errors if no data is available
         
-        window_start = datetime.strptime(greenest_windows[0]["windowStartAms"],"%Y-%m-%dT%H:%M+02:00")
+        window_start = datetime.strptime(greenest_windows[0]["windowStartAms"],"%Y-%m-%dT%H:%M+01:00")
         _LOGGER.debug(f"Retrieving Vandebron greenest_windows from Coordinator for start: {window_start}")
 
         now = datetime.now()
@@ -152,7 +152,7 @@ class VandebronWindowStartTimeSensor(SensorEntity):
         if not greenest_windows:
             return None  # ✅ Avoid errors if no data is available
         
-        window_start = datetime.strptime(greenest_windows[0]["windowStartAms"],"%Y-%m-%dT%H:%M+02:00").replace(tzinfo=timezone.utc)
+        window_start = datetime.strptime(greenest_windows[0]["windowStartAms"],"%Y-%m-%dT%H:%M+01:00").replace(tzinfo=timezone.utc)
 
 
         return window_start.strftime("%H:%M")  # ✅ Format as HH:MM
