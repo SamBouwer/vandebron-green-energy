@@ -175,7 +175,7 @@ class VandebronWindowEndTimeSensor(SensorEntity):
         if not greenest_windows:
             return None  # ✅ Avoid errors if no data is available
         
-        window_end = datetime.strptime(greenest_windows[0]["windowEndAms"],"%Y-%m-%dT%H:%M+00:00").replace(tzinfo=timezone.utc)
+        window_end = datetime.strptime(greenest_windows[0]["windowEndAms"],"%Y-%m-%dT%H:%M+01:00").replace(tzinfo=timezone.utc)
 
         if not window_end:
             return None  # ✅ Prevent errors if no data is available
