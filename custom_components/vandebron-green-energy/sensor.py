@@ -1,9 +1,13 @@
 from homeassistant.components.sensor import SensorEntity
 from .coordinator import VandebronDataUpdateCoordinator
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import logging
 
 _LOGGER = logging.getLogger(__name__)
+
+# ✅ Define Amsterdam timezone for proper DST handling
+AMSTERDAM_TZ = ZoneInfo("Europe/Amsterdam")
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the sensor entities dynamically."""
@@ -29,6 +33,29 @@ async def async_setup_entry(hass, entry, async_add_entities):
     ])
 
     async_add_entities(entities)
+
+def parse_amsterdam_time(datetime_str):
+    """Parse datetime string and ensure it's in Amsterdam timezone.
+    
+    Handles both formats:
+    - ISO format with timezone: "2024-03-15T14:30:00+01:00"
+    - ISO format without timezone: "2024-03-15T14:30:00"
+    """
+    try:
+        # Try parsing with timezone first
+        dt = datetime.fromisoformat(datetime_str)
+        
+        # If naive (no timezone), assume it's already in Amsterdam time
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=AMSTERDAM_TZ)
+        else:
+            # Convert to Amsterdam timezone
+            dt = dt.astimezone(AMSTERDAM_TZ)
+        
+        return dt
+    except Exception as e:
+        _LOGGER.error(f"Error parsing datetime '{datetime_str}': {e}")
+        return None
 
 class VandebronGreenestWindowSensor(SensorEntity):
     def __init__(self, coordinator, sensor_type, day):
@@ -127,10 +154,16 @@ class VandebronTimeUntilNextWindowSensor(SensorEntity):
         if not greenest_windows:
             return None  # ✅ Avoid errors if no data is available
         
-        window_start = datetime.strptime(greenest_windows[0]["windowStartAms"],"%Y-%m-%dT%H:%M+01:00")
+        # ✅ Parse with DST-aware function
+        window_start = parse_amsterdam_time(greenest_windows[0]["windowStartAms"])
+        
+        if not window_start:
+            return None
+        
         _LOGGER.debug(f"Retrieving Vandebron greenest_windows from Coordinator for start: {window_start}")
 
-        now = datetime.now()
+        # ✅ Get current time in Amsterdam timezone
+        now = datetime.now(AMSTERDAM_TZ)
         delta = window_start - now
 
         _LOGGER.debug(f"Retrieving Vandebron greenest_windows from Coordinator for delta: {delta}")
@@ -159,8 +192,11 @@ class VandebronWindowStartTimeSensor(SensorEntity):
         if not greenest_windows:
             return None  # ✅ Avoid errors if no data is available
         
-        window_start = datetime.strptime(greenest_windows[0]["windowStartAms"],"%Y-%m-%dT%H:%M+01:00").replace(tzinfo=timezone.utc)
-
+        # ✅ Parse with DST-aware function
+        window_start = parse_amsterdam_time(greenest_windows[0]["windowStartAms"])
+        
+        if not window_start:
+            return None
 
         return window_start.strftime("%H:%M")  # ✅ Format as HH:MM
 
@@ -182,7 +218,8 @@ class VandebronWindowEndTimeSensor(SensorEntity):
         if not greenest_windows:
             return None  # ✅ Avoid errors if no data is available
         
-        window_end = datetime.strptime(greenest_windows[0]["windowEndAms"],"%Y-%m-%dT%H:%M+01:00").replace(tzinfo=timezone.utc)
+        # ✅ Parse with DST-aware function
+        window_end = parse_amsterdam_time(greenest_windows[0]["windowEndAms"])
 
         if not window_end:
             return None  # ✅ Prevent errors if no data is available
