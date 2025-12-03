@@ -49,7 +49,13 @@ class VandebronGreenestWindowSensor(SensorEntity):
         if not greenest_windows or len(greenest_windows) <= self.day:
             return None  # ✅ Handle missing data gracefully
 
-        return greenest_windows[self.day].get(self.sensor_type, "Unknown")  # ✅ Extract datapoint per day
+        value = greenest_windows[self.day].get(self.sensor_type, "Unknown")
+        
+        # ✅ Convert greenPercentage to whole number
+        if self.sensor_type == "greenPercentage" and value != "Unknown":
+            return round(value)
+        
+        return value
 
 class VandebronForecastSensor(SensorEntity):
     def __init__(self, coordinator):
@@ -86,9 +92,10 @@ class VandebronForecastSensor(SensorEntity):
             for timepoint in day:
                 _LOGGER.debug(f"Entry in forecast_data: {timepoint}")
                 timestamps.append(timepoint["datetimeAms"])
-                solar_percentages.append(timepoint["solarPercentage"])
-                wind_percentages.append(timepoint["windPercentage"])
-                green_percentages.append(timepoint["greenPercentage"])
+                # ✅ Round percentages to whole numbers
+                solar_percentages.append(round(timepoint["solarPercentage"]))
+                wind_percentages.append(round(timepoint["windPercentage"]))
+                green_percentages.append(round(timepoint["greenPercentage"]))
 
         return {
             "timestamps": timestamps,
