@@ -32,7 +32,7 @@ class VandebronDataUpdateCoordinator(DataUpdateCoordinator):
             greenest_windows = []  # ✅ Store greenest window data for requested days
             forecast_data = []
             
-            for day in range(self.day_offset):  # ✅ Loop from today up to 'day_offset'
+            for day in range(self.day_offset + 1):  # ✅ Loop from today up to 'day_offset'
                 # ✅ Use Amsterdam timezone for proper DST handling
                 target_date = datetime.now(AMSTERDAM_TZ) + timedelta(days=day)
                 
