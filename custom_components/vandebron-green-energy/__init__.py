@@ -22,8 +22,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
         hass.data[DOMAIN] = coordinator
     
-        # ✅ Forward entry setup for sensors
-        await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+        # ✅ Forward entry setup for sensors and binary sensors
+        await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor"])
         return True
         
     except Exception as e:
@@ -32,4 +32,4 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload integration entry."""
-    return await hass.config_entries.async_unload_platforms(entry, ["sensor"])
+    return await hass.config_entries.async_unload_platforms(entry, ["sensor", "binary_sensor"])

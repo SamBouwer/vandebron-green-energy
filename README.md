@@ -94,7 +94,7 @@ series:
 ![Example of an Apex graph on a Home Assistant Dashboard](graph.png)
 
 ## Automations
-You can create automations to start appliances in your home when the "greenest" 3 hour timeframe of the day starts with the entity `minutes_until_next_green_window`.
+You can create automations to start appliances in your home when the "greenest" 3 hour timeframe of the day starts with the entity `vandebron_green_window_active`.
 
 Example automation:
 
@@ -102,10 +102,9 @@ Example automation:
 alias: Turn on dishwasher during greenest energy window
 description: ""
 triggers:
-  - trigger: numeric_state
-    entity_id:
-      - sensor.minutes_until_next_green_window
-    below: 1
+  - trigger: state
+    entity_id: binary_sensor.vandebron_green_window_active
+    to: "on"
 actions:
   - action: switch.turn_on
     metadata: {}
