@@ -1,22 +1,38 @@
 from homeassistant.components.sensor import SensorEntity
-from .coordinator import VandebronDataUpdateCoordinator
+from .coordinator import VandebronDataUpdateCoordinator, AMSTERDAM_TZ
 from datetime import datetime, timezone
 import logging
 
 _LOGGER = logging.getLogger(__name__)
 
+# ✅ Sensor keys are kept from the old API so entity IDs stay stable; map them to the new API fields
+WINDOW_FIELDS = {
+    "windowStartAms": "windowStartDateTime",
+    "windowEndAms": "windowEndDateTime",
+    "greenPercentage": "greenPercentage",
+}
+
+def parse_utc(value):
+    """Parse an API UTC timestamp (e.g. 2026-04-26T08:15:00Z) into an Amsterdam-local datetime."""
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(AMSTERDAM_TZ)
+
+def first_window(coordinator):
+    """Return today's greenest window, or None if unavailable."""
+    greenest_windows = coordinator.data.get("greenest_windows", [])
+    return greenest_windows[0] if greenest_windows else None
+
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the sensor entities dynamically."""
     coordinator = hass.data["vandebron_green_energy"]
-    
-    sensor_types = ["windowStartAms", "windowEndAms", "greenPercentage"]
+
+    sensor_types = list(WINDOW_FIELDS)
     days_offset = range(coordinator.day_offset)
-    
+
     entities = [VandebronGreenestWindowSensor(coordinator, sensor_type, day)
         for sensor_type in sensor_types
         for day in days_offset
     ]
-    
+
     for entity in entities:
         _LOGGER.debug(f"Registering sensor for vandebron: {entity._attr_name}")
 
@@ -46,10 +62,18 @@ class VandebronGreenestWindowSensor(SensorEntity):
         """Retrieve the specific datapoint for the given day."""
         greenest_windows = self.coordinator.data.get("greenest_windows", [])
 
-        if not greenest_windows or len(greenest_windows) <= self.day:
+        if len(greenest_windows) <= self.day or not greenest_windows[self.day]:
             return None  # ✅ Handle missing data gracefully
 
-        return greenest_windows[self.day].get(self.sensor_type, "Unknown")  # ✅ Extract datapoint per day
+        value = greenest_windows[self.day].get(WINDOW_FIELDS[self.sensor_type])  # ✅ Extract datapoint per day
+
+        if value is None:
+            return None
+
+        if self.sensor_type == "greenPercentage":
+            return round(value, 2)
+
+        return parse_utc(value).isoformat(timespec="minutes")  # ✅ Same Amsterdam-local format as the old API
 
 class VandebronForecastSensor(SensorEntity):
     def __init__(self, coordinator):
@@ -64,28 +88,28 @@ class VandebronForecastSensor(SensorEntity):
     def state(self):
         """Return the most recent forecasted green percentage."""
         forecast_data = self.coordinator.data.get("forecast_data", [])
-        
+
         _LOGGER.debug(f"Retrieving Vandebron forecast_data from Coordinator: {forecast_data}")
-        
-        if not forecast_data:
+
+        if not forecast_data or not forecast_data[0]:
             return None  # ✅ Return None if forecast data is missing
-        
-        return forecast_data[0][0]["datetimeAms"]  # ✅ Show latest forecasted percentage
+
+        return forecast_data[0][0]["forecastDateTime"]  # ✅ Show latest forecasted percentage
 
     @property
     def extra_state_attributes(self):
         """Return all forecast data with formatted timestamps."""
         forecast_data = self.coordinator.data.get("forecast_data", [])
-        
+
         timestamps = []
         solar_percentages = []
         wind_percentages = []
         green_percentages = []
 
         for day in forecast_data:
-            for timepoint in day:
+            for timepoint in day or []:  # ✅ Skip days the API returned no data for
                 _LOGGER.debug(f"Entry in forecast_data: {timepoint}")
-                timestamps.append(timepoint["datetimeAms"])
+                timestamps.append(timepoint["forecastDateTime"])
                 solar_percentages.append(timepoint["solarPercentage"])
                 wind_percentages.append(timepoint["windPercentage"])
                 green_percentages.append(timepoint["greenPercentage"])
@@ -115,15 +139,15 @@ class VandebronTimeUntilNextWindowSensor(SensorEntity):
     @property
     def state(self):
         """Return the number of minutes until today's next green window."""
-        greenest_windows = self.coordinator.data.get("greenest_windows", [])
+        window = first_window(self.coordinator)
 
-        if not greenest_windows:
+        if not window:
             return None  # ✅ Avoid errors if no data is available
-        
-        window_start = datetime.strptime(greenest_windows[0]["windowStartAms"],"%Y-%m-%dT%H:%M+02:00")
+
+        window_start = parse_utc(window["windowStartDateTime"])
         _LOGGER.debug(f"Retrieving Vandebron greenest_windows from Coordinator for start: {window_start}")
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         delta = window_start - now
 
         _LOGGER.debug(f"Retrieving Vandebron greenest_windows from Coordinator for delta: {delta}")
@@ -136,7 +160,7 @@ class VandebronTimeUntilNextWindowSensor(SensorEntity):
 
 class VandebronWindowStartTimeSensor(SensorEntity):
     """Sensor that returns the start time of the next green window in HH:MM format."""
-    
+
     def __init__(self, coordinator):
         self.coordinator = coordinator
         self._attr_name = "Vandebron Green Window Start Time"
@@ -147,19 +171,18 @@ class VandebronWindowStartTimeSensor(SensorEntity):
     @property
     def state(self):
         """Return the window start time formatted as HH:MM."""
-        greenest_windows = self.coordinator.data.get("greenest_windows", [])
+        window = first_window(self.coordinator)
 
-        if not greenest_windows:
+        if not window:
             return None  # ✅ Avoid errors if no data is available
-        
-        window_start = datetime.strptime(greenest_windows[0]["windowStartAms"],"%Y-%m-%dT%H:%M+02:00").replace(tzinfo=timezone.utc)
 
+        window_start = parse_utc(window["windowStartDateTime"])
 
-        return window_start.strftime("%H:%M")  # ✅ Format as HH:MM
+        return window_start.strftime("%H:%M")  # ✅ Format as HH:MM (Amsterdam time)
 
 class VandebronWindowEndTimeSensor(SensorEntity):
     """Sensor that returns the end time of the next green window in HH:MM format."""
-    
+
     def __init__(self, coordinator):
         self.coordinator = coordinator
         self._attr_name = "Vandebron Green Window End Time"
@@ -170,14 +193,11 @@ class VandebronWindowEndTimeSensor(SensorEntity):
     @property
     def state(self):
         """Return the window end time formatted as HH:MM."""
-        greenest_windows = self.coordinator.data.get("greenest_windows", [])
+        window = first_window(self.coordinator)
 
-        if not greenest_windows:
+        if not window:
             return None  # ✅ Avoid errors if no data is available
-        
-        window_end = datetime.strptime(greenest_windows[0]["windowEndAms"],"%Y-%m-%dT%H:%M+02:00").replace(tzinfo=timezone.utc)
 
-        if not window_end:
-            return None  # ✅ Prevent errors if no data is available
+        window_end = parse_utc(window["windowEndDateTime"])
 
-        return window_end.strftime("%H:%M")  # ✅ Format as HH:MM
+        return window_end.strftime("%H:%M")  # ✅ Format as HH:MM (Amsterdam time)
