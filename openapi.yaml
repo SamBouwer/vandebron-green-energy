@@ -1,0 +1,389 @@
+openapi: 3.1.1
+info:
+  title: green-energy-mix-kotlin
+  description: The green energy mix service gets forecast of the energy mix on the Dutch grid and calculates the greenest window.
+  version: 0.1.0
+  contact:
+    name: Vandebron
+    email: team-engagement@vandebron.nl
+servers:
+  - url: http://localhost:8080
+    description: |
+      Local development: run the service on your own machine. Use this for local testing and development.
+  - url: https://test.vandebron.dev/green-energy-mix-kotlin
+    description: |
+      Human debugging (Test): for Vandebron developers to experiment and debug against the deployed test environment. Not for service-to-service calls.
+  - url: https://api.test.vandebron.tech/green-energy-mix-kotlin
+    description: |
+      Customer-facing (Test): for web/app clients to access the API in the test environment.
+  - url: https://acce.vandebron.dev/green-energy-mix-kotlin
+    description: |
+      Human debugging (Acceptance): for Vandebron developers to experiment and debug against the deployed acceptance environment. Not for service-to-service calls.
+  - url: https://api.acce.vandebron.tech/green-energy-mix-kotlin
+    description: |
+      Customer-facing (Acceptance): for web/app clients to access the API in the acceptance environment.
+  - url: https://prod.vandebron.dev/green-energy-mix-kotlin
+    description: |
+      Human debugging (Production): for Vandebron developers to experiment and debug against the deployed production environment. Not for service-to-service calls.
+  - url: https://api.vandebron.tech/green-energy-mix-kotlin
+    description: |
+      Customer-facing (Production): for web/app clients to access the API in the production environment.
+  - url: http://green-energy-mix-kotlin.green-energy-mix.svc.cluster.local
+    description: |
+      Internal Kubernetes service: for Vandebron backend services to access the API within the cluster.
+paths:
+  /v1/forecast/{forecastDate}:
+    get:
+      summary: Get forecast of Dutch green energy mix for a specific date
+      description: |
+        Gather data for the requested date from the prediction models of NED and compute it into a green energy mix forecast. 
+        This forecast includes the percentages for wind and solar energy in The Netherlands.
+        Returns a forecast response with 23–25 hourly items depending on DST; see schema for details.
+      operationId: getEnergyMixForecast
+      security: []
+      parameters:
+        - name: forecastDate
+          in: path
+          required: true
+          description: |
+            YYYY-MM-DD date for which the forecast is requested, interpreted as a date in Amsterdam local time. 
+            `forecastDate` must be between [today-1day] and [today+3days], included, where "today" is the current date in Amsterdam local time.
+          example: "2026-04-26"
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastResponse'
+              examples:
+                Forecast found:
+                  value:
+                    forecastDate: "2026-04-26"
+                    data:
+                      - forecastDateTime: "2026-04-25T22:00:00Z"
+                        windPercentage: 25.30
+                        solarPercentage: 0.00
+                        greenPercentage: 25.30
+                      - forecastDateTime: "2026-04-25T23:00:00Z"
+                        windPercentage: 27.99
+                        solarPercentage: 0.00
+                        greenPercentage: 27.99
+                      - forecastDateTime: "2026-04-26T00:00:00Z"
+                        windPercentage: 23.10
+                        solarPercentage: 0.00
+                        greenPercentage: 23.10
+                      # ... and more until we reach sunlight hours:
+                      - forecastDateTime: "2026-04-26T06:00:00Z"
+                        windPercentage: 33.10
+                        solarPercentage: 15.30
+                        greenPercentage: 48.40
+                      - forecastDateTime: "2026-04-26T07:00:00Z"
+                        windPercentage: 44.44
+                        solarPercentage: 26.10
+                        greenPercentage: 70.54
+                      # Example where windPercentage + solarPercentage exceeds 100 and greenPercentage is
+                      # capped: 64.79 + 78.00 = 142.79. Each field is the mean of four per-PTU capped values
+                      # from independent ratios, so their sum can exceed 100 even though each is within [0, 100].
+                      - forecastDateTime: "2026-06-14T07:00:00Z"
+                        windPercentage: 64.79
+                        solarPercentage: 78.00
+                        greenPercentage: 100
+                    # ... 23-25 data items total
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastErrorResponse'
+              examples:
+                Invalid forecast date format:
+                  value:
+                    errorType: INVALID_FORECAST_DATE_FORMAT
+                    message: Invalid value for argument 'forecastDate', use a valid date format.
+                Forecast date out of range:
+                  value:
+                    errorType: FORECAST_DATE_OUT_OF_RANGE
+                    message: Value for 'forecastDate' out of range. forecastDate must be between [today-1day] and [today+3days], included, where "today" is the current date in Amsterdam local time.
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastErrorResponse'
+              examples:
+                Forecast data not available:
+                  value:
+                    errorType: FORECAST_DATA_NOT_FOUND
+                    message: Forecast data not found for the requested date.
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastErrorResponse'
+              examples:
+                Unexpected error:
+                  value:
+                    errorType: INTERNAL_SERVER_ERROR
+                    message: Unexpected error.
+
+  /v1/window/{forecastDate}:
+    get:
+      summary: Get greenest window in the forecast
+      description: |
+        Find the window of time where the green energy percentage is at its highest, for the specified date (`forecastDate`) in the Netherlands.
+        This is determined by finding the maximum consecutive averages of `greenPercentage` within a forecasted date. The size of 
+        the window is set by the `windowSizeHours` request parameter, it can vary from 3-12 hours and defaults to 3.
+      operationId: getGreenestWindow
+      security: []
+      parameters:
+        - name: forecastDate
+          in: path
+          required: true
+          description: |
+            YYYY-MM-DD date for which the greenest window is requested, interpreted as a date in Amsterdam local time. 
+            `forecastDate` must be between [today-1day] and [today+3days], included, where "today" is the current date in Amsterdam local time.
+          example: "2026-04-26"
+          schema:
+            type: string
+            format: date
+        - name: windowSizeHours
+          in: query
+          required: false
+          description: Duration of the window, in hours. Minimum window size is 3 hours, maximum window size is 12 hours. Defaults to 3 hours.
+          example: 3
+          schema:
+            type: integer
+            default: 3
+            minimum: 3
+            maximum: 12
+      responses:
+        '200':
+          description: Successful request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WindowResponse'
+              examples:
+                Greenest window found:
+                  value:
+                    windowStartDateTime: "2026-04-26T08:15:00Z"
+                    windowEndDateTime: "2026-04-26T11:15:00Z"
+                    greenPercentage: 62.53
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WindowErrorResponse'
+              examples:
+                Invalid forecast date format:
+                  value:
+                    errorType: INVALID_FORECAST_DATE_FORMAT
+                    message: Invalid value for argument 'forecastDate', use a valid date format.
+                Forecast date out of range:
+                  value:
+                    errorType: FORECAST_DATE_OUT_OF_RANGE
+                    message: Value for 'forecastDate' out of range. forecastDate must be between [today-1day] and [today+3days], included, where "today" is the current date in Amsterdam local time.
+                Invalid window size format:
+                  value:
+                    errorType: INVALID_WINDOW_SIZE_FORMAT
+                    message: Invalid value for argument 'windowSizeHours', use a valid integer.
+                Window size out of range:
+                  value:
+                    errorType: WINDOW_SIZE_OUT_OF_RANGE
+                    message: Value for 'windowSizeHours' out of range. windowSizeHours must be between 3 and 12, included.
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WindowErrorResponse'
+              examples:
+                Forecast data not available:
+                  value:
+                    errorType: FORECAST_DATA_NOT_FOUND
+                    message: Forecast data needed to compute window not found for the requested date.
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WindowErrorResponse'
+              examples:
+                Unexpected error:
+                  value:
+                    errorType: INTERNAL_SERVER_ERROR
+                    message: Unexpected error.
+components:
+  schemas:
+    ForecastResponse:
+      title: ForecastResponse
+      type: object
+      required:
+        - forecastDate
+        - data
+      properties:
+        forecastDate:
+          type: string
+          format: date
+          description: YYYY-MM-DD date this forecast covers.
+          example: "2026-04-26"
+        data:
+          type: array
+          minItems: 23
+          maxItems: 25
+          description: |
+            Hourly forecast items covering one Amsterdam local day, ordered chronologically by `forecastDateTime` (UTC).
+            Because `forecastDate` is an Amsterdam local date but `forecastDateTime` values are in UTC, 
+            the first items of the array can have a UTC date that is one day earlier than `forecastDate`.
+            For example: `forecastDate` of 2026-01-16 starts 2026-01-15T23:00:00Z (Amsterdam is in CET)
+            and `forecastDate` of 2026-04-26 starts 2026-04-25T22:00:00Z (Amsterdam is in CEST).
+
+            Normally 24 items per day. On DST transition days:
+            - 23 items on spring-forward day (last Sunday of March): the Amsterdam local hour 02:00–03:00 does not exist, 
+              so no bucket is emitted for it.
+            - 25 items on fall-back day (last Sunday of October): the Amsterdam local hour 02:00–03:00 occurs twice,
+              so two distinct UTC buckets are emitted.
+          items:
+            $ref: '#/components/schemas/ForecastResponseItem'
+    ForecastResponseItem:
+      title: ForecastResponseItem
+      type: object
+      required:
+        - forecastDateTime
+        - windPercentage
+        - solarPercentage
+        - greenPercentage
+      properties:
+        forecastDateTime:
+          type: string
+          format: date-time
+          description: |
+            UTC start time of the 1-hour bucket (suffix `Z`). All percentage fields in this item are means
+            of the four 15-minute PTU values within this hour, where each PTU value is capped at 100 before
+            averaging.
+          example: "2026-04-26T11:00:00Z"
+        windPercentage:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          description: |
+            Mean of the four 15-minute PTU values in this hour, where each PTU value is
+            `min(100, (wind onshore + wind offshore generation in MWh / grid load in MWh) x 100)`.
+            When wind output exceeds grid consumption, the underlying PTU ratio exceeds 100%; such PTUs
+            contribute 100 to the average. When total green output (solar + wind) exceeds grid consumption,
+            `windPercentage + solarPercentage` will exceed `greenPercentage`, because each is capped
+            independently. Clients rendering these as segments in a stacked chart summing to 100 must
+            normalize the values themselves.
+          example: 33.05
+        solarPercentage:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          description: |
+            Mean of the four 15-minute PTU values in this hour, where each PTU value is
+            `min(100, (solar generation in MWh / grid load in MWh) x 100)`.
+            When solar output exceeds grid consumption, the underlying PTU ratio exceeds 100%; such PTUs
+            contribute 100 to the average. When total green output (solar + wind) exceeds grid consumption,
+            `windPercentage + solarPercentage` will exceed `greenPercentage`, because each is capped
+            independently. Clients rendering these as segments in a stacked chart summing to 100 must
+            normalize the values themselves.
+          example: 52.14
+        greenPercentage:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          description: |
+            Mean of the four 15-minute PTU values in this hour, where each PTU value is
+            `min(100, ((solar + wind onshore + wind offshore) generation in MWh / grid load in MWh) x 100)`.
+            This is the user-facing green percentage for the period. When total green output exceeds grid
+            consumption, the underlying PTU ratio exceeds 100%; such PTUs contribute 100 to the average.
+            When total green output exceeds grid consumption, `windPercentage + solarPercentage` will exceed
+            this value, because each field is capped independently.
+          example: 85.19
+
+    WindowResponse:
+      title: WindowResponse
+      type: object
+      required:
+        - windowStartDateTime
+        - windowEndDateTime
+        - greenPercentage
+      properties:
+        windowStartDateTime:
+          type: string
+          format: date-time
+          description: Start of the greenest window, in UTC (suffix `Z`). Aligned to a 15-minute PTU boundary.
+          example: "2026-04-26T10:15:00Z"
+        windowEndDateTime:
+          type: string
+          format: date-time
+          description: End of the greenest window (exclusive), in UTC (suffix `Z`). Aligned to a 15-minute PTU boundary.
+          example: "2026-04-26T13:15:00Z"
+        greenPercentage:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          description: Average green percentage across the PTUs in this window. Capped at 100.
+          example: 62.53
+
+    ForecastErrorResponse:
+      title: ForecastErrorResponse
+      description: Error response for the get forecast endpoint.
+      type: object
+      required:
+        - errorType
+        - message
+      properties:
+        errorType:
+          $ref: '#/components/schemas/ForecastErrorType'
+        message:
+          type: string
+          description: A human-readable error message describing what went wrong.
+          example: Forecast data not found for the requested date.
+
+    ForecastErrorType:
+      description: Error types specific to the get forecast endpoint.
+      type: string
+      enum:
+        - INVALID_FORECAST_DATE_FORMAT
+        - FORECAST_DATE_OUT_OF_RANGE
+        - FORECAST_DATA_NOT_FOUND
+        - INTERNAL_SERVER_ERROR
+      example: FORECAST_DATA_NOT_FOUND
+
+    WindowErrorResponse:
+      title: WindowErrorResponse
+      description: Error response for the get window endpoint.
+      type: object
+      required:
+        - errorType
+        - message
+      properties:
+        errorType:
+          $ref: '#/components/schemas/WindowErrorType'
+        message:
+          type: string
+          description: A human-readable error message describing what went wrong.
+          example: Greenest window not found for the requested date.
+
+    WindowErrorType:
+      description: Error types specific to the get window endpoint.
+      type: string
+      enum:
+        - INVALID_FORECAST_DATE_FORMAT
+        - FORECAST_DATE_OUT_OF_RANGE
+        - INVALID_WINDOW_SIZE_FORMAT
+        - WINDOW_SIZE_OUT_OF_RANGE
+        - FORECAST_DATA_NOT_FOUND
+        - INTERNAL_SERVER_ERROR
+      example: INVALID_WINDOW_SIZE_FORMAT
