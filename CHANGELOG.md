@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.2.1 - 2026-11-15
+
 ### Fixed
 
 - The forecast only covered today when the integration was added with the default setup, so charts showed a flat line after midnight. The default setup now retrieves today and tomorrow, and the advanced setup defaults to 2 days too.
