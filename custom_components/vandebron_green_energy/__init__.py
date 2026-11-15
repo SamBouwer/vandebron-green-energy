@@ -1,6 +1,7 @@
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from .coordinator import VandebronDataUpdateCoordinator
+from .const import DEFAULT_DAY_OFFSET
 import logging
 
 DOMAIN = "vandebron_green_energy"
@@ -13,7 +14,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     # ✅ Pass day_offset to the coordinator
     try:
-        day_offset = entry.data.get("day_offset", 1) # ✅ Retrieve user-configured day_offset from entry
+        day_offset = entry.data.get("day_offset", DEFAULT_DAY_OFFSET) # ✅ Default setup has no day_offset: fetch today and tomorrow
         coordinator = VandebronDataUpdateCoordinator(hass, day_offset)
         await coordinator.async_config_entry_first_refresh()
         await coordinator.async_request_refresh()

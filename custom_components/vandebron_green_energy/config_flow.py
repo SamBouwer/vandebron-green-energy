@@ -1,7 +1,7 @@
 import logging
 import voluptuous as vol
 from homeassistant import config_entries
-from .const import DOMAIN, MAX_DAY_OFFSET  # ✅ Ensure DOMAIN is imported!
+from .const import DOMAIN, DEFAULT_DAY_OFFSET, MAX_DAY_OFFSET  # ✅ Ensure DOMAIN is imported!
 
 class VandebronConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handles UI-based setup for the integration."""
@@ -38,7 +38,7 @@ class VandebronConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="options",
             data_schema=vol.Schema({
-                vol.Required("day_offset", default=1): vol.All(
+                vol.Required("day_offset", default=DEFAULT_DAY_OFFSET): vol.All(
                     vol.Coerce(int),
                     vol.Range(min=1, max=MAX_DAY_OFFSET)
                 )
